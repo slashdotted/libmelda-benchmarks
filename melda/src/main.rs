@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 use fs_extra::dir::get_size;
-use melda::{adapter::Adapter, filesystemadapter::FilesystemAdapter, flate2adapter::Flate2Adapter, melda::Melda};
+use melda::{adapter::Adapter, filesystemadapter::FilesystemAdapter, brotliadapter::BrotliAdapter, melda::Melda};
 use serde_json::{json, Map, Value};
 use std::sync::{Arc, RwLock};
 use std::{
@@ -70,7 +70,7 @@ fn main() {
     let page_size = procfs::page_size().unwrap() as usize;
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("Missing command: build|buildflate <dir> <interval> [maxdeltas] | buildreload|buildreloadflate <dir> <interval> [maxdeltas] | read|readflate <dir>");
+        eprintln!("Missing command: build|buildbrotli <dir> <interval> [maxdeltas] | buildreload|buildreloadbrotli <dir> <interval> [maxdeltas] | read|readbrotli <dir>");
         exit(1);
     }
 
@@ -79,8 +79,8 @@ fn main() {
     if command == "build"
         || command == "buildbench"
         || command == "buildreload"
-        || command == "buildflate"
-        || command == "buildreloadflate"
+        || command == "buildbrotli"
+        || command == "buildreloadbrotli"
     {
         if args.len() < 3 {
             eprintln!("Missing directory");
@@ -96,13 +96,13 @@ fn main() {
         };
         let interval = &args[3].parse::<u32>().unwrap();
         let dir = args[2].as_str();
-        let benchreload = command == "buildreload" || command == "buildreloadflate";
+        let benchreload = command == "buildreload" || command == "buildreloadbrotli";
         let file_adapter: Box<dyn Adapter> = if command == "buildreload" || command == "build" {
             Box::new(FilesystemAdapter::new(&dir).expect("cannot_initialize_adapter"))
         } else {
             let fsadapter : Box<dyn Adapter> = Box::new(FilesystemAdapter::new(&dir).expect("cannot_initialize_adapter"));
             let fsadapter = Arc::new(RwLock::new(fsadapter));
-            Box::new(Flate2Adapter::new(fsadapter))
+            Box::new(BrotliAdapter::new(fsadapter))
         };
         let mut replica =
             Melda::new(Arc::new(RwLock::new(file_adapter))).expect("cannot_initialize_crdt");
@@ -220,7 +220,7 @@ fn main() {
                 println!("{},edits,{},ins,{},del,{},real_length,{},array_length,{},deltas,{},ms,{},eps,{},state_size,{},update_ms,{},commit_ms,{},reload_ms,{},statm.size,{},statm.resident,{},statm.share,{},statm.text,{},statm.data", i, insertions, deletions, insertions-deletions, length, deltas, elapsed.as_millis(), eps, state_size, update_elapsed.as_millis(), commit_elapsed.as_millis(), -1, statm.size*page_size, statm.resident*page_size, statm.share*page_size, statm.text*page_size, statm.data*page_size);
             }
         }
-    } else if command == "read" || command == "readflate" {
+    } else if command == "read" || command == "readbrotli" {
         if args.len() < 3 {
             eprintln!("Missing directory");
             exit(1);
@@ -232,7 +232,7 @@ fn main() {
         } else {
             let fsadapter : Box<dyn Adapter> = Box::new(FilesystemAdapter::new(&dir).expect("cannot_initialize_adapter"));
             let fsadapter = Arc::new(RwLock::new(fsadapter));
-            Box::new(Flate2Adapter::new(fsadapter))
+            Box::new(BrotliAdapter::new(fsadapter))
         };
         let replica =
             Melda::new(Arc::new(RwLock::new(file_adapter))).expect("cannot_initialize_crdt");
